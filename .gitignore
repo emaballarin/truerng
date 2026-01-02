@@ -73,9 +73,10 @@ Thumbs.db
 # TrueRNG specific - generated data files
 *.bin
 *.data
-*.ent.txt
-*.rngtest.txt
-*.dieharder.txt
+*.data.ent.txt
+*.data.rngtest.txt
+*.data.dieharder.txt
+src/results/
 
 # NLTK data
 nltk_data/

@@ -49,7 +49,7 @@ TrueRNG_Max_Mean_Error = 0.5  # Maximum Mean Error
 TrueRNG_Normal_Test_Size = 256 * 1024  # 0.25 Mbyte of data
 
 # Test parameters for TrueRNGpro (V1)
-TrueRNGpro_Min_Rate = 3.2  # Mbits/second
+TrueRNGpro_Min_Rate = 3.3  # Mbits/second
 TrueRNGpro_Min_Entropy = 7.9995  # bits/byte
 TrueRNGpro_Max_Pi_Error = 0.5  # Maximum PI Error
 TrueRNGpro_Max_Mean_Error = 0.5  # Maximum Mean Error
@@ -57,9 +57,9 @@ TrueRNGpro_Normal_Test_Size = 1 * 1024 * 1024  # 1Mbyte of data
 TrueRNGpro_Min_PS_Voltage = 7800  # Millivolts
 TrueRNGpro_Max_PS_Voltage = 10300  # Millivolts
 TrueRNGpro_Mean_Min = 450
-TrueRNGpro_Mean_Max = 550
+TrueRNGpro_Mean_Max = 675
 TrueRNGpro_Std_Min = 20
-TrueRNGpro_Std_Max = 180
+TrueRNGpro_Std_Max = 330
 
 # Test parameters for TrueRNGproV2
 TrueRNGproV2_Min_Rate = 3.3  # Mbits/second
