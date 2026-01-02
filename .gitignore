@@ -79,3 +79,5 @@ Thumbs.db
 
 # NLTK data
 nltk_data/
+
+.claude/
