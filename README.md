@@ -1,29 +1,27 @@
-TrueRNG Utilities
-=================
+# TrueRNG Utilities
+
 Scripts and Utilities for the TrueRNG and TrueRNGpro Random Number Generators
 
-Devices and information available at: https://ubld.it/products/
----------------------------------------------------------------
+## Devices and information available at: https://ubld.it/products/
 
-Tools (Windows and Linux)
--------------------------
-* **truerng_find.py**:	Scans COM ports and identifies all connected TrueRNG devices
-* **truerng_generate_password.py**: Example of how to create random passwords from TrueRNG devices
-* **truerng_generate_words.py**: Example of how to create random word lists from TrueRNG devices
-* **truerng_mode.py**: Example of how to change modes on TrueRNGpro and TrueRNGproV2 devices
-* **truerng_read_example.py**: Example of how to read from a TrueRNG device
-* **truerng_test.py**: Finds and performs testing on connected TrueRNG devices
+## Tools (Windows and Linux)
 
-Tools (Linux Only)
-------------------
-* **truerng_fulltest.py**:	Reads a large block of data (14GB) and runs ent, rngtest, and dieharder (takes ~9 hours on the TrueRNGpro / TrueRNGproV2)
-* **run_rngtest**:					Linux script to run rngtest since it doensn't like to be called directly from Python - this is a "helper" for truerng_fulltest.py and isn't meant to be used directly
+- **truerng_find.py**: Scans COM ports and identifies all connected TrueRNG devices
+- **truerng_generate_password.py**: Example of how to create random passwords from TrueRNG devices
+- **truerng_generate_words.py**: Example of how to create random word lists from TrueRNG devices
+- **truerng_mode.py**: Example of how to change modes on TrueRNGpro and TrueRNGproV2 devices
+- **truerng_read_example.py**: Example of how to read from a TrueRNG device
+- **truerng_test.py**: Finds and performs testing on connected TrueRNG devices
 
-Windows INSTRUCTIONS
---------------------
+## Tools (Linux Only)
+
+- **truerng_fulltest.py**: Reads a large block of data (14GB) and runs ent, rngtest, and dieharder (takes ~9 hours on the TrueRNGpro / TrueRNGproV2)
+- **run_rngtest**: Linux script to run rngtest since it doensn't like to be called directly from Python - this is a "helper" for truerng_fulltest.py and isn't meant to be used directly
+
+## Windows INSTRUCTIONS
 
 1. Install Python 64-bit for Windows from:
-https://www.python.org/ftp/python/3.8.3/python-3.8.3-amd64.exe
+   https://www.python.org/ftp/python/3.8.3/python-3.8.3-amd64.exe
 
 2. Put all files in the same directory - recommend c:\users\YOUR_USERNAME\TrueRNGutils or similar that you can remember
 
@@ -45,8 +43,7 @@ OR
 
 This app should detect the device, run tests, and display results both in text and a graph of the performance.
 
-Linux Instructions (Ubuntu / Debian-based)
-------------------------------------------
+## Linux Instructions (Ubuntu / Debian-based)
 
 1. Install Python3
 
@@ -68,49 +65,49 @@ OR
 
 This app should detect the device, run tests, and display results both in text and a graph of the performance.
 
-More Python Tools and info at:  https://cockrum.net
+More Python Tools and info at: https://cockrum.net
 
-What the Results of truerng_test.py should look like
-====================================================
+# What the Results of truerng_test.py should look like
 
-TrueRNGv1/v2/v3
----------------
+## TrueRNGv1/v2/v3
 
 ![TrueRNGv3_Test](https://cockrum.net/images/TrueRNGv3_Test.jpg)
 ![TrueRNGv3_Test](https://cockrum.net/images/TrueRNGv3_Graph.jpg)
 
-TrueRNGpro (replaced by TrueRNGproV2)
----------------
+## TrueRNGpro (replaced by TrueRNGproV2)
 
 ![TrueRNGproV1_Test](https://cockrum.net/images/TrueRNGproV1_Test.jpg)
 ![TrueRNGproV1_Test](https://cockrum.net/images/TrueRNGproV1_Graph.jpg)
 
-TrueRNGproV2 (Current Amazon sales of the TrueRNGpro are shipping this unit)
----------------
+## TrueRNGproV2 (Current Amazon sales of the TrueRNGpro are shipping this unit)
 
 ![TrueRNGproV2_Test](https://cockrum.net/images/TrueRNGproV2_Test.jpg)
 ![TrueRNGproV2_Graph](https://cockrum.net/images/TrueRNGproV2_Graph.jpg)
 
-Output of truerng_generate_password.py and truerng_generate_words.py
-====================================================================
+# Output of truerng_generate_password.py and truerng_generate_words.py
+
 ![truerng_generate_password.py Output](https://cockrum.net/images/TrueRNG_password_example.png)
 ![truerng_generate_password.py Output](https://cockrum.net/images/TrueRNG_wordlist_example.png)
 
+# Installation of the udev rules For Ubuntu/Debian-based
 
-Installation of the udev rules For Ubuntu/Debian-based
-======================================================
 1. Put 99-TrueRNG.rules in /etc/udev/rules.d
-* sudo cp LOCATION/99-TrueRNG.rules /etc/udev/rules.d
+
+- sudo cp LOCATION/99-TrueRNG.rules /etc/udev/rules.d
+
 2. Change permissions to 0644
-* sudo chmod 0644 /etc/udev/rules.d
+
+- sudo chmod 0644 /etc/udev/rules.d
+
 3. Reboot or reload udev rules
-* sudo reboot OR
-* sudo udevadm control --reload-rules && sudo udevadm trigger
 
-Your TrueRNG devices should now show up as:
--------------------------------------------
-* /dev/TrueRNG0
-* /dev/TrueRNG1
-* etc.
+- sudo reboot OR
+- sudo udevadm control --reload-rules && sudo udevadm trigger
 
-More Python Tools and info at:  https://cockrum.net
+## Your TrueRNG devices should now show up as:
+
+- /dev/TrueRNG0
+- /dev/TrueRNG1
+- etc.
+
+More Python Tools and info at: https://cockrum.net

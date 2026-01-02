@@ -1,78 +1,92 @@
 #!/usr/bin/python3
+"""Scan and identify all connected TrueRNG devices.
 
-# TrueRNG Finder
-# Chris K Cockrum
-# 6/8/2020
-#
-# Requires Python 3.8, pyserial
-# On Linux - may need to be root or set /dev/tty port permissions to 666
-#
-# Python 3.8.xx is available here: https://www.python.org/downloads/
-# Install Pyserial package with:   python -m pip install pyserial
-# Install Pyusb package with:   python -m pip install pyusb
+This script enumerates serial ports and identifies TrueRNG devices,
+displaying their serial numbers and firmware revisions.
 
+Original author: Chris K Cockrum
+Date: 6/8/2020
+"""
+
+import subprocess
 import sys
+
 if sys.platform != "linux":
     sys.exit("Error: This script only runs on Linux.")
 
-import serial
-import usb
-import subprocess
 from serial.tools import list_ports
 
+from truerng_utils import (
+    TRUERNG_VID_PID,
+    TRUERNGPRO_VID_PID,
+    TRUERNGPROV2_VID_PID,
+)
 
-try:
-    # Set com port to default None
-    rng_com_port = None
 
-    # Set mode to default None
-    mode = None
+def get_firmware_revision(vid_pid: str) -> str:
+    """Get firmware revision from lsusb for a given USB VID:PID.
 
-    print("====================================================")
+    Args:
+        vid_pid: USB Vendor:Product ID (e.g., "04d8:f5fe").
+
+    Returns:
+        Firmware revision string, or "Unknown" on error.
+    """
+    command = f"lsusb -d {vid_pid.lower()} -v 2> /dev/null | grep bcdDevice"
+    try:
+        result = subprocess.check_output(command, shell=True)
+        return str(result).split("  ")[-1].split("\\")[0]
+    except subprocess.CalledProcessError:
+        return "Unknown"
+
+
+def main() -> int:
+    """Main entry point for device finder.
+
+    Returns:
+        Exit code (0 for success).
+    """
+    print("=" * 52)
     print("= TrueRNG Finder                                   =")
     print("= for TrueRNG, TrueRNGV2, TrueRNGpro, TrueRNGproV2 =")
     print("= http://ubld.it                                   =")
-    print("====================================================")
+    print("=" * 52)
 
-    ########################
-    # Get list of TrueRNGs #
-    ########################
-
-    # Call list_ports to get com port info
+    # Get list of available COM ports
     ports_available = list_ports.comports()
+    found_devices = 0
 
-    # Loop on all available ports to find TrueRNG
-    # Uses the first TrueRNG, TrueRNGpro, or TrueRNGproV2 found
-    for temp in ports_available:
-        #   print(temp[1] + ' : ' + temp[2])
-        if "04D8:F5FE" in temp[2]:
-            command = "lsusb -d 04d8:f5fe -v 2> /dev/null | grep bcdDevice"
-            result = subprocess.check_output(command, shell=True)
-            print(
-                temp[0] + " : TrueRNG       : No SN      " + " : Rev " + str(result).split("  ")[-1].split("\\")[0]
-            )
-        if "16D0:0AA0" in temp[2]:
-            command = "lsusb -d 16d0:0aa0 -v 2> /dev/null | grep bcdDevice"
-            result = subprocess.check_output(command, shell=True)
-            print(
-                temp[0]
-                + " : TrueRNGpro    : SN "
-                + temp.serial_number
-                + " : Rev "
-                + str(result).split("  ")[-1].split("\\")[0]
-            )
-        if "04D8:EBB5" in temp[2]:
-            command = "lsusb -d 04d8:ebb5 -v 2> /dev/null | grep bcdDevice"
-            result = subprocess.check_output(command, shell=True)
-            print(
-                temp[0]
-                + " : TrueRNGpro V2 : SN "
-                + temp.serial_number
-                + " : Rev "
-                + str(result).split("  ")[-1].split("\\")[0]
-            )
+    for port_info in ports_available:
+        hwid = port_info[2] if len(port_info) > 2 else ""
+        port = port_info[0]
+        serial_num = port_info.serial_number or "None"
 
-    print("====================================================")
+        if TRUERNG_VID_PID in hwid:
+            rev = get_firmware_revision("04d8:f5fe")
+            print(f"{port} : TrueRNG       : No SN       : Rev {rev}")
+            found_devices += 1
 
-except:
-    print("Exiting now!")
+        elif TRUERNGPRO_VID_PID in hwid:
+            rev = get_firmware_revision("16d0:0aa0")
+            print(f"{port} : TrueRNGpro    : SN {serial_num} : Rev {rev}")
+            found_devices += 1
+
+        elif TRUERNGPROV2_VID_PID in hwid:
+            rev = get_firmware_revision("04d8:ebb5")
+            print(f"{port} : TrueRNGpro V2 : SN {serial_num} : Rev {rev}")
+            found_devices += 1
+
+    print("=" * 52)
+
+    if found_devices == 0:
+        print("No TrueRNG devices detected.")
+
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("\nExiting now!")
+        sys.exit(0)

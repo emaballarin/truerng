@@ -1,209 +1,156 @@
 #!/usr/bin/python3
+"""Change operating mode on TrueRNGpro and TrueRNGproV2 devices.
 
-# TrueRNG Mode Change
-# Chris K Cockrum
-# 6/5/2020
-#
-# Requires Python 3.8, pyserial
-# On Linux - may need to be root or set /dev/tty port permissions to 666
-#
-# Python 3.8.xx is available here: https://www.python.org/downloads/
-# Install Pyserial package with:   python -m pip install pyserial
-# truerng_mode.py PORTNAME MODE
-# Example:  python3 truerng_mode.py /dev/ttyACM0 MODE_NORMAL
+This script allows switching between different operating modes on
+TrueRNGpro devices and displays sample output data.
+
+Usage: truerng_mode.py [PORT] [MODE]
+Example: python3 truerng_mode.py /dev/ttyACM0 MODE_NORMAL
+
+Original author: Chris K Cockrum
+Date: 6/5/2020
+"""
 
 import sys
-import serial
 import time
-import math
-import os
-from serial.tools import list_ports
 
-# Set Default Operating Mode to Normal
-OPERATING_MODE = "MODE_RNGDEBUG"
+import serial
 
-# Set block size to read to get sample
-sample_block_size = 100 * 1024
+from truerng_utils import (
+    MODE_BAUDRATES,
+    find_truerng_devices,
+    mode_change,
+    reset_serial_port,
+)
 
+# Default operating mode
+DEFAULT_MODE = "MODE_RNGDEBUG"
 
-########################
-# Function: modeChange #
-########################
-# Supported Modes
-# MODE_NORMAL       300       /* Streams combined + Mersenne Twister */
-# MODE_PSDEBUG      1200      /* PS Voltage in mV in ASCII */
-# MODE_RNGDEBUG     2400      /* RNG Debug 0x0RRR 0x0RRR in ASCII */
-# MODE_RNG1WHITE    4800      /* RNG1 + Mersenne Twister */
-# MODE_RNG2WHITE    9600      /* RNG2 + Mersenns Twister*/
-# MODE_RAW_BIN      19200     /* Raw ADC Samples in Binary Mode */
-# MODE_RAW_ASC      38400     /* Raw ADC Samples in Ascii Mode */
-# MODE_UNWHITENED  57600      /* Unwhitened RNG1-RNG2 (TrueRNGproV2 Only) */
-# MODE_NORMAL_ASC   115200    /* Normal in Ascii Mode (TrueRNGproV2 Only) */
-# MODE_NORMAL_ASC_SLOW 230400    /* Normal in Ascii Mode - Slow for small devices (TrueRNGproV2 Only) */
-def modeChange(MODE, PORT):
-    mode_match = 0
-
-    # "Knock" Sequence to activate mode change
-    ser = serial.Serial(port=PORT, baudrate=110, timeout=1)
-    ser.close()
-    ser = serial.Serial(port=PORT, baudrate=300, timeout=1)
-    ser.close()
-    ser = serial.Serial(port=PORT, baudrate=110, timeout=1)
-    ser.close()
-    if MODE == "MODE_NORMAL":
-        ser = serial.Serial(port=PORT, baudrate=300, timeout=1)
-        print("Switched to " + MODE)
-        mode_match = 1
-    if MODE == "MODE_PSDEBUG":
-        ser = serial.Serial(port=PORT, baudrate=1200, timeout=1)
-        print("Switched to " + MODE)
-        mode_match = 1
-    if MODE == "MODE_RNGDEBUG":
-        ser = serial.Serial(port=PORT, baudrate=2400, timeout=1)
-        print("Switched to " + MODE)
-        mode_match = 1
-    if MODE == "MODE_RNG1WHITE":
-        ser = serial.Serial(port=PORT, baudrate=4800, timeout=1)
-        print("Switched to " + MODE)
-        mode_match = 1
-    if MODE == "MODE_RNG2WHITE":
-        ser = serial.Serial(port=PORT, baudrate=9600, timeout=1)
-        print("Switched to " + MODE)
-        mode_match = 1
-    if MODE == "MODE_RAW_BIN":
-        ser = serial.Serial(port=PORT, baudrate=19200, timeout=1)
-        print("Switched to " + MODE)
-        mode_match = 1
-    if MODE == "MODE_RAW_ASC":
-        ser = serial.Serial(port=PORT, baudrate=38400, timeout=1)
-        print("Switched to " + MODE)
-        mode_match = 1
-    if MODE == "MODE_UNWHITENED":
-        ser = serial.Serial(port=PORT, baudrate=57600, timeout=1)
-        print("Switched to " + MODE)
-        mode_match = 1
-    if MODE == "MODE_NORMAL_ASC":
-        ser = serial.Serial(port=PORT, baudrate=115200, timeout=1)
-        print("Switched to " + MODE)
-        mode_match = 1
-    if MODE == "MODE_NORMAL_ASC_SLOW":
-        ser = serial.Serial(port=PORT, baudrate=230400, timeout=1)
-        mode_match = 1
-    ser.close()
-    if mode_match == 0:
-        print("Mode not Recognized")
+# Sample block size for testing output
+SAMPLE_BLOCK_SIZE = 100 * 1024
 
 
-try:
-    # Set com port to default None
-    rng_com_port = None
+def print_available_modes() -> None:
+    """Print list of available modes."""
+    print("\nAvailable modes:")
+    for mode_name, baudrate in MODE_BAUDRATES.items():
+        print(f"  {mode_name}: baudrate {baudrate}")
 
-    # Set mode to default None
-    mode = None
 
-    print("==============================================")
+def main() -> int:
+    """Main entry point for mode change utility.
+
+    Returns:
+        Exit code (0 for success, 1 for error).
+    """
+    print("=" * 46)
     print("= TrueRNG Mode Change                        =")
     print("= for TrueRNGpro and TrueRNGproV2            =")
     print("= http://ubld.it                             =")
-    print("==============================================")
+    print("=" * 46)
 
-    #########################
-    # Get list of Com ports #
-    #########################
+    # Find TrueRNG devices
+    devices = find_truerng_devices()
+    rng_com_port: str | None = None
+    device_mode: str | None = None
 
-    # Call list_ports to get com port info
-    ports_avaiable = list_ports.comports()
+    for port, device_type in devices:
+        print(f"{port} : {device_type}")
 
-    # Loop on all available ports to find TrueRNG
-    # Uses the first TrueRNG, TrueRNGpro, or TrueRNGproV2 found
-    for temp in ports_avaiable:
-        #   print(temp[1] + ' : ' + temp[2])
-        if "04D8:F5FE" in temp[2]:
-            print(temp[0] + " : TrueRNG - Mode Changes Not Supported")
-            if rng_com_port == None:
-                rng_com_port = temp[0]
-                mode = "TrueRNG"
-            else:
-                if len(sys.argv) >= 2:
-                    if temp[0] == str(sys.argv[1]):
-                        rng_com_port = temp[0]
-                        mode = "TrueRNG"
-        if "16D0:0AA0" in temp[2]:
-            print(temp[0] + " : TrueRNGpro")
-            if rng_com_port == None:
-                rng_com_port = temp[0]
-                mode = "TrueRNGpro"
-            else:
-                if len(sys.argv) >= 2:
-                    if temp[0] == str(sys.argv[1]):
-                        rng_com_port = temp[0]
-                        mode = "TrueRNGpro"
-        if "04D8:EBB5" in temp[2]:
-            print(temp[0] + " : TrueRNGpro V2")
-            if rng_com_port == None:
-                rng_com_port = temp[0]
-                mode = "TrueRNGproV2"
-            else:
-                if len(sys.argv) >= 2:
-                    if temp[0] == str(sys.argv[1]):
-                        rng_com_port = temp[0]
-                        mode = "TrueRNGproV2"
+        if device_type == "TrueRNG":
+            print("  (Mode changes not supported on TrueRNG V1/V2/V3)")
+            if rng_com_port is None:
+                rng_com_port = port
+                device_mode = device_type
+        else:
+            if rng_com_port is None:
+                rng_com_port = port
+                device_mode = device_type
 
-    # Print if we detect no compatible devices
-    if rng_com_port == None:
+        # Check if command-line port matches
+        if len(sys.argv) >= 2 and port == sys.argv[1]:
+            rng_com_port = port
+            device_mode = device_type
+
+    if rng_com_port is None:
         print("No TrueRNG devices detected!")
+        return 1
 
-    print("==============================================")
-    # Print out which port we are using
-    if len(sys.argv) >= 2:
-        print("Using " + mode + " on " + rng_com_port)
-    else:
-        print("Using " + mode + " on " + rng_com_port)
+    print("=" * 46)
+    print(f"Using {device_mode} on {rng_com_port}")
 
+    # Get mode from command line or use default
+    operating_mode = DEFAULT_MODE
     if len(sys.argv) == 3:
-        OPERATING_MODE = str(sys.argv[2])
-    if mode == "TrueRNG":
-        print("Mode Changes Not Supported")
-    else:
-        modeChange(OPERATING_MODE, rng_com_port)
+        operating_mode = sys.argv[2]
 
-    ser = serial.Serial(port=rng_com_port, timeout=10)  # timeout set at 10 seconds in case the read fails
+    # Check if mode change is supported
+    if device_mode == "TrueRNG":
+        print("Mode changes not supported on TrueRNG V1/V2/V3")
+        return 0
 
-    # Open the serial port if it isn't open
-    if ser.isOpen() == False:
-        ser.open()
+    # Validate mode
+    if operating_mode not in MODE_BAUDRATES:
+        print(f"Unknown mode: {operating_mode}")
+        print_available_modes()
+        return 1
 
-    # Set Data Terminal Ready to start flow
-    ser.setDTR(True)
-
-    # This clears the receive buffer so we aren't using buffered data
-    ser.flushInput()
-
-    # Try to read the port and record the time before and after
+    # Change mode
     try:
-        before = time.time()  # in microseconds
-        x = ser.read(sample_block_size)  # read bytes from serial port
-        after = time.time()  # in microseconds
-    except:
-        print("Read Failed!!!")
+        if mode_change(operating_mode, rng_com_port, verbose=True):
+            print(f"Mode changed to {operating_mode}")
+        else:
+            print(f"Failed to change mode to {operating_mode}")
+            return 1
+    except serial.SerialException as e:
+        print(f"Serial error during mode change: {e}")
+        return 1
 
-    # Calculate the rate
-    rate = float(sample_block_size) / ((after - before) * 1000000.0) * 8
+    # Read sample data
+    try:
+        ser = serial.Serial(port=rng_com_port, timeout=10)
+    except serial.SerialException as e:
+        print(f"Port Not Usable: {e}")
+        print(f"Do you have permissions to read {rng_com_port}?")
+        return 1
 
-    print(str(sample_block_size) + " Bytes Read at " + "{:2.3f}".format(rate) + " Mbits/s")
+    try:
+        if not ser.isOpen():
+            ser.open()
 
+        ser.setDTR(True)
+        ser.flushInput()
+
+        before = time.time()
+        data = ser.read(SAMPLE_BLOCK_SIZE)
+        after = time.time()
+
+    except serial.SerialException as e:
+        print(f"Read Failed: {e}")
+        return 1
+    finally:
+        ser.close()
+
+    # Calculate transfer rate
+    elapsed = after - before
+    if elapsed > 0:
+        rate = float(SAMPLE_BLOCK_SIZE) / (elapsed * 1_000_000.0) * 8
+    else:
+        rate = 0.0
+
+    print(f"{SAMPLE_BLOCK_SIZE} Bytes Read at {rate:2.3f} Mbits/s")
     print("Output Sample:")
-    print(x[0:80:1])
+    print(data[0:80])
 
-    # Close the serial port
-    ser.close()
+    # Reset serial port settings
+    reset_serial_port(rng_com_port)
+
+    return 0
 
 
-except:
-    print("Port Not Usable!")
-    print("Do you have permissions set to read " + rng_com_port + " ?")
-
-# Set min on com port back to 1 (Linux only)
-# Pyserial screws this up
-if sys.platform == "linux":
-    os.system("stty -F " + rng_com_port + " min 1")
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("\nExiting now!")
+        sys.exit(0)

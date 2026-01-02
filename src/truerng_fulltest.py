@@ -1,229 +1,193 @@
 #!/usr/bin/python3
+"""Capture large data blocks from TrueRNG and run statistical tests.
 
-# TrueRNG Read - Simple Example
-# Chris K Cockrum
-# 6/9/2020
-#
-# Requires Python 3.8, pyserial
-#
-# On Linux - may need to be root or set /dev/tty port permissions to 666
-#
-# Python 3.8.xx is available here: https://www.python.org/downloads/
-# Install Pyserial package with:   python -m pip install pyserial
-#
-# Note: Dieharder needs 14GiB of data to not re-use (rewind) input data
-#       If you run this with 14GiB, many of the dieharder results may be invalid
+This script reads 14GB of data from a TrueRNG device (takes ~9 hours on
+TrueRNGpro/TrueRNGproV2) and runs comprehensive statistical tests:
+- ent: Entropy analysis
+- rngtest: FIPS 140-2 randomness tests
+- dieharder: Comprehensive statistical test suite
+
+Note: Dieharder needs 14GiB of data to not re-use (rewind) input data.
+
+Original author: Chris K Cockrum
+Date: 6/9/2020
+"""
 
 import sys
-import serial
 import time
-import os
-from serial.tools import list_ports
+from pathlib import Path
+from typing import BinaryIO
 
-# Number of loops
-numloops = 14 * 1024  # Need 14GiB (14*1024) for Dieharder to not repeat data
+import serial
 
-# Size of block for each loop
-blocksize = 1024 * 1024  # 1MiB - if you change this then the calculations be be wrong
+from truerng_utils import (
+    find_truerng_devices,
+    mode_change,
+    reset_serial_port,
+    run_dieharder,
+    run_ent,
+    run_rngtest,
+)
 
-# Set com port to default None
-rng_com_port = None
+# Data capture configuration
+NUM_LOOPS = 14 * 1024  # 14 GiB for Dieharder to not repeat data
+BLOCK_SIZE = 1024 * 1024  # 1 MiB per read
 
 # Set mode (only has effect on TrueRNGpro and TrueRNGproV2)
-capture_mode = "MODE_NORMAL"
-
-# Construct filename
-datetimestring = time.strftime("%Y%m%d.%H%M%S")
-filenameprefix = "TrueRNGpro"
-FILENAME = str(filenameprefix + "_" + datetimestring + ".data")
-
-# dieharder options
-DIEHARDER_OPTIONS = "-a -g 201 -s 1 -k 2 -Y 1"
+CAPTURE_MODE = "MODE_NORMAL"
 
 
-########################
-# Function: modeChange #
-########################
-# Supported Modes
-# MODE_NORMAL       300       /* Streams combined + Mersenne Twister */
-# MODE_PSDEBUG      1200      /* PS Voltage in mV in ASCII */
-# MODE_RNGDEBUG     2400      /* RNG Debug 0x0RRR 0x0RRR in ASCII */
-# MODE_RNG1WHITE    4800      /* RNG1 + Mersenne Twister */
-# MODE_RNG2WHITE    9600      /* RNG2 + Mersenns Twister*/
-# MODE_RAW_BIN      19200     /* Raw ADC Samples in Binary Mode */
-# MODE_RAW_ASC      38400     /* Raw ADC Samples in Ascii Mode */
-# MODE_UNWHITENED   57600     /* Unwhitened RNG1-RNG2 (TrueRNGproV2 Only) */
-# MODE_NORMAL_ASC   115200    /* Normal in Ascii Mode (TrueRNGproV2 Only) */
-# MODE_NORMAL_ASC_SLOW 230400    /* Normal in Ascii Mode - Slow for small devices (TrueRNGproV2 Only) */
-def modeChange(MODE, PORT):
-    # "Knock" Sequence to activate mode change
-    ser = serial.Serial(port=PORT, baudrate=110, timeout=1)
-    time.sleep(0.5)
-    ser.close()
-    ser = serial.Serial(port=PORT, baudrate=300, timeout=1)
-    ser.close()
-    ser = serial.Serial(port=PORT, baudrate=110, timeout=1)
-    ser.close()
-    if MODE == "MODE_NORMAL":
-        ser = serial.Serial(port=PORT, baudrate=300, timeout=1)
-    if MODE == "MODE_PSDEBUG":
-        ser = serial.Serial(port=PORT, baudrate=1200, timeout=1)
-    if MODE == "MODE_RNGDEBUG":
-        ser = serial.Serial(port=PORT, baudrate=2400, timeout=1)
-    if MODE == "MODE_RNG1WHITE":
-        ser = serial.Serial(port=PORT, baudrate=4800, timeout=1)
-    if MODE == "MODE_RNG2WHITE":
-        ser = serial.Serial(port=PORT, baudrate=9600, timeout=1)
-    if MODE == "MODE_RAW_BIN":
-        ser = serial.Serial(port=PORT, baudrate=19200, timeout=1)
-    if MODE == "MODE_RAW_ASC":
-        ser = serial.Serial(port=PORT, baudrate=38400, timeout=1)
-    if MODE == "MODE_UNWHITENED":
-        ser = serial.Serial(port=PORT, baudrate=57600, timeout=1)
-    if MODE == "MODE_NORMAL_ASC":
-        ser = serial.Serial(port=PORT, baudrate=115200, timeout=1)
-    if MODE == "MODE_NORMAL_ASC_SLOW":
-        ser = serial.Serial(port=PORT, baudrate=230400, timeout=1)
-    ser.close()
+def generate_filename() -> Path:
+    """Generate a timestamped output filename.
+
+    Returns:
+        Path object for the output file.
+    """
+    datetime_string = time.strftime("%Y%m%d.%H%M%S")
+    return Path(f"TrueRNGpro_{datetime_string}.data")
 
 
-# Print Header
-print("TrueRNGpro Full Testing")
-print("http://ubld.it")
-print("==================================================")
+def capture_data(
+    port: str,
+    output_file: BinaryIO,
+    num_loops: int = NUM_LOOPS,
+    block_size: int = BLOCK_SIZE,
+) -> int:
+    """Capture random data from a TrueRNG device.
 
+    Args:
+        port: Serial port path.
+        output_file: Open file handle to write data to.
+        num_loops: Number of blocks to read.
+        block_size: Size of each block in bytes.
 
-# Call list_ports to get com port info
-ports_avaiable = list_ports.comports()
+    Returns:
+        Total bytes captured.
 
-# Loop on all available ports to find TrueRNG
-print("Com Port List")
-for temp in ports_avaiable:
-    #   print(temp[1] + ' : ' + temp[2])
-    if "04D8:F5FE" in temp[2]:
-        print("Found TrueRNG on " + temp[0])
-        if rng_com_port == None:  # always chooses the 1st TrueRNG found
-            rng_com_port = temp[0]
-    if "16D0:0AA0" in temp[2]:
-        print("Found TrueRNGpro on " + temp[0])
-        if rng_com_port == None:  # always chooses the 1st TrueRNG found
-            rng_com_port = temp[0]
-    if "04D8:EBB5" in temp[2]:
-        print("Found TrueRNGproV2 on " + temp[0])
-        if rng_com_port == None:  # always chooses the 1st TrueRNG found
-            rng_com_port = temp[0]
+    Raises:
+        serial.SerialException: If serial port operations fail.
+    """
+    ser = serial.Serial(port=port, timeout=10)
 
-print("==================================================")
-
-# Override port detected if command line port is used
-if len(sys.argv) == 2:
-    rng_com_port = str(sys.argv[1])
-    print("Using com port:  " + rng_com_port + " (from command line)")
-else:
-    print("Using com port:  " + rng_com_port + " (first detected)")
-
-# Print block size and number of loops
-print("Block Size:      " + "{:2.2f}".format(blocksize / 1024 / 1024) + " MiB")
-print("Number of loops: " + str(numloops))
-print("Total size:      " + "{:2.2f}".format(numloops / 1024) + " GiB")
-print("Writing to:      " + FILENAME)
-print("Capture Mode:    " + capture_mode)
-print("==================================================")
-
-# Change to above mode (only has effect on the TrueRNGpro and TrueRNGproV2)
-modeChange(capture_mode, rng_com_port)
-
-# Open/create the file random.bin in the current directory with 'write binary'
-fp = open(FILENAME, "wb")
-
-# Print an error if we can't open the file
-if fp == None:
-    print("Error Opening File!")
-
-# Try to setup and open the comport
-try:
-    ser = serial.Serial(port=rng_com_port, timeout=10)  # timeout set at 10 seconds in case the read fails
-except:
-    print("Port Not Usable!")
-    print("Do you have permissions set to read " + rng_com_port + " ?")
-
-# Open the serial port if it isn't open
-if ser.isOpen() == False:
-    ser.open()
-
-# Set Data Terminal Ready to start flow
-ser.setDTR(True)
-
-# This clears the receive buffer so we aren't using buffered data
-ser.flushInput()
-
-# Keep track of total bytes read
-totalbytes = 0
-
-# Loop
-for i in range(numloops):
-    # Try to read the port and record the time before and after
     try:
-        before = time.time()  # in microseconds
-        x = ser.read(blocksize)  # read bytes from serial port
-        after = time.time()  # in microseconds
-    except:
-        print("Read Failed!!!")
-        break
+        if not ser.isOpen():
+            ser.open()
 
-    # Update total bytes read
-    totalbytes += len(x)
+        ser.setDTR(True)
+        ser.flushInput()
 
-    # If we were able to open the file, write to disk
-    if fp != 0:
-        fp.write(x)
+        total_bytes = 0
 
-    # Calculate the rate
-    rate = float(blocksize) / ((after - before) * 1000000.0) * 8
+        for i in range(num_loops):
+            try:
+                before = time.time()
+                data = ser.read(block_size)
+                after = time.time()
+            except serial.SerialException as e:
+                print(f"\nRead failed at block {i + 1}: {e}")
+                break
 
-    # Write status
-    sys.stdout.write(
-        str(i + 1)
-        + " of "
-        + str(numloops)
-        + " MiB ("
-        + "{:2.1f}".format((i + 1) * 100 / numloops)
-        + "%)Read at "
-        + "{:2.3f}".format(rate)
-        + " Mbits/s"
-        + "\r"
-    )
+            total_bytes += len(data)
+            output_file.write(data)
 
-# Close the serial port
-ser.close()
+            # Calculate transfer rate
+            elapsed = after - before
+            if elapsed > 0:
+                rate = float(block_size) / (elapsed * 1_000_000.0) * 8
+            else:
+                rate = 0.0
 
-# If the file is open then close it
-if fp != 0:
-    fp.close()
+            # Display progress
+            progress = (i + 1) * 100 / num_loops
+            sys.stdout.write(f"\r{i + 1} of {num_loops} MiB ({progress:2.1f}%) Read at {rate:2.3f} Mbits/s")
+            sys.stdout.flush()
 
-print("\n *** Running ent *** \n")
+        print()  # Newline after progress
+        return total_bytes
 
-# Run ENT
-try:
-    os.system("ent " + FILENAME + " > " + FILENAME + ".ent.txt")
-except:
-    print("Can't run ent")
+    finally:
+        ser.close()
 
-# Run rngtest
-print("\n *** Running rngtest *** \n")
-try:
-    os.system("./run_rngtest " + FILENAME)
-except:
-    print("Can't run rngtest")
 
-# Run Dieharder
-print("\n *** Running dieharder *** \n")
-try:
-    os.system("dieharder " + DIEHARDER_OPTIONS + " -f " + FILENAME + " > " + FILENAME + ".dieharder.txt")
-except:
-    print("Can't run dieharder")
+def main() -> int:
+    """Main entry point for full testing.
 
-# Set min on com port back to 1 (Linux only)
-# Pyserial screws this up
-if sys.platform == "linux":
-    os.system("stty -F " + rng_com_port + " min 1")
+    Returns:
+        Exit code (0 for success, 1 for error).
+    """
+    # Platform check
+    if sys.platform != "linux":
+        print("Error: This script only runs on Linux.")
+        return 1
+
+    print("TrueRNGpro Full Testing")
+    print("http://ubld.it")
+    print("=" * 50)
+
+    # Find TrueRNG devices
+    devices = find_truerng_devices()
+    rng_com_port: str | None = None
+
+    print("Detected devices:")
+    for port, device_type in devices:
+        print(f"  Found {device_type} on {port}")
+        if rng_com_port is None:
+            rng_com_port = port
+
+    # Override with command line argument if provided
+    if len(sys.argv) == 2:
+        rng_com_port = sys.argv[1]
+        print(f"\nUsing com port: {rng_com_port} (from command line)")
+    elif rng_com_port:
+        print(f"\nUsing com port: {rng_com_port} (first detected)")
+    else:
+        print("No TrueRNG devices detected!")
+        return 1
+
+    print("=" * 50)
+
+    # Generate output filename
+    output_filename = generate_filename()
+
+    # Print configuration
+    print(f"Block Size:      {BLOCK_SIZE / 1024 / 1024:.2f} MiB")
+    print(f"Number of loops: {NUM_LOOPS}")
+    print(f"Total size:      {NUM_LOOPS / 1024:.2f} GiB")
+    print(f"Writing to:      {output_filename}")
+    print(f"Capture Mode:    {CAPTURE_MODE}")
+    print("=" * 50)
+
+    # Change to capture mode
+    try:
+        mode_change(CAPTURE_MODE, rng_com_port)
+    except serial.SerialException as e:
+        print(f"Failed to change mode: {e}")
+        return 1
+
+    # Capture data
+    try:
+        with open(output_filename, "wb") as fp:
+            try:
+                total_bytes = capture_data(rng_com_port, fp)
+                print(f"Captured {total_bytes / 1024 / 1024:.2f} MiB")
+            except serial.SerialException as e:
+                print(f"Serial port error: {e}")
+                print(f"Do you have permissions to read {rng_com_port}?")
+                return 1
+    except OSError as e:
+        print(f"Error opening output file: {e}")
+        return 1
+
+    # Run statistical tests
+    run_ent(output_filename)
+    run_rngtest(output_filename)
+    run_dieharder(output_filename)
+
+    # Reset serial port settings
+    reset_serial_port(rng_com_port)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

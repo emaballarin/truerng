@@ -1,74 +1,71 @@
 #!/usr/bin/python3
+"""Run statistical randomness tests on captured TrueRNG data files.
 
-# TrueRNG Run Tests
-# Chris K Cockrum
-# 6/14/2020
-#
-# Requires Python 3.8, dieharder, ent, rng-tools
-#
-# On Linux - may need to be root or set /dev/tty port permissions to 666
-#
-# Python 3.8.xx is available here: https://www.python.org/downloads/
-#
-# Note: Dieharder needs 14GiB of data to not re-use (rewind) input data
-#       If you run this with 14GiB, many of the dieharder results may be invalid
+This script runs three statistical test suites on a data file:
+- ent: Entropy analysis
+- rngtest: FIPS 140-2 randomness tests
+- dieharder: Comprehensive statistical test suite
+
+Note: Dieharder needs 14GiB of data to not re-use (rewind) input data.
+If you run this with less data, some dieharder results may be invalid.
+
+Original author: Chris K Cockrum
+Date: 6/14/2020
+"""
 
 import sys
-if sys.platform != "linux":
-    sys.exit("Error: This script only runs on Linux.")
+from pathlib import Path
 
-import shutil
-import time
-import os
-
-# Check for required binaries
-missing_binaries = []
-for binary in ["ent", "dieharder", "rngtest"]:
-    if shutil.which(binary) is None:
-        missing_binaries.append(binary)
-
-if missing_binaries:
-    sys.exit("Error: Missing required binaries: " + ", ".join(missing_binaries))
-
-if len(sys.argv) == 2:
-    FILENAME = str(sys.argv[1])
-else:
-    print("Usage: truerng_runtests.py FILENAME")
-    exit()
+from truerng_utils import (
+    check_test_binaries,
+    run_dieharder,
+    run_ent,
+    run_rngtest,
+)
 
 
-if os.path.isfile(FILENAME):
-    # Print Header
-    print("==================================================")
-    print("TrueRNGpro Running Full Tests on " + FILENAME)
+def main() -> int:
+    """Main entry point for running tests.
+
+    Returns:
+        Exit code (0 for success, 1 for error).
+    """
+    # Platform check
+    if sys.platform != "linux":
+        print("Error: This script only runs on Linux.")
+        return 1
+
+    # Check for required binaries
+    missing = check_test_binaries()
+    if missing:
+        print(f"Error: Missing required binaries: {', '.join(missing)}")
+        return 1
+
+    # Parse command line arguments
+    if len(sys.argv) != 2:
+        print("Usage: truerng_runtests.py FILENAME")
+        return 1
+
+    filename = Path(sys.argv[1])
+
+    if not filename.is_file():
+        print(f"{filename} not found")
+        return 1
+
+    # Print header
+    print("=" * 50)
+    print(f"TrueRNGpro Running Full Tests on {filename}")
     print("http://ubld.it")
-    print("==================================================")
-else:
-    print(FILENAME + " Not Found")
-    exit()
+    print("=" * 50)
+
+    # Run all tests
+    success = True
+    success &= run_ent(filename)
+    success &= run_rngtest(filename)
+    success &= run_dieharder(filename)
+
+    return 0 if success else 1
 
 
-# dieharder options
-DIEHARDER_OPTIONS = "-a -g 201 -s 1 -k 2 -Y 1"
-
-print("\n *** Running ent *** \n")
-
-# Run ENT
-try:
-    os.system("ent " + FILENAME + " > " + FILENAME + ".ent.txt")
-except:
-    print("Can't run ent")
-
-# Run rngtest
-print("\n *** Running rngtest *** \n")
-try:
-    os.system("./run_rngtest " + FILENAME)
-except:
-    print("Can't run rngtest")
-
-# Run Dieharder
-print("\n *** Running dieharder *** \n")
-try:
-    os.system("dieharder " + DIEHARDER_OPTIONS + " -f " + FILENAME + " > " + FILENAME + ".dieharder.txt")
-except:
-    print("Can't run dieharder")
+if __name__ == "__main__":
+    sys.exit(main())
