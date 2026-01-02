@@ -9,14 +9,12 @@
 #
 # Python 3.8.xx is available here: https://www.python.org/downloads/
 # Install Pyserial package with:   python -m pip install pyserial
-# Run this Python Script from the Windows command line:  py truerng_mode.py OR truerng_mode.py
 # truerng_mode.py PORTNAME MODE
-# Windows example:  py truerng_mode.py COM1 MODE_NORMAL
-# Linux example:  python3 truerng_mode.py /dev/ttyACM0 MODE_NORMAL
+# Example:  python3 truerng_mode.py /dev/ttyACM0 MODE_NORMAL
 
+import sys
 import serial
 import time
-import sys
 import math
 import os
 from serial.tools import list_ports
@@ -205,7 +203,7 @@ except:
     print("Port Not Usable!")
     print("Do you have permissions set to read " + rng_com_port + " ?")
 
-# If we're on Linux set min on com port back to 1
+# Set min on com port back to 1 (Linux only)
 # Pyserial screws this up
-if os.name == "posix":
+if sys.platform == "linux":
     os.system("stty -F " + rng_com_port + " min 1")

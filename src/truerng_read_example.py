@@ -11,6 +11,7 @@
 # Python 3.8.xx is available here: https://www.python.org/downloads/
 # Install Pyserial package with:   python -m pip install pyserial
 
+import sys
 import serial
 import time
 import os
@@ -176,7 +177,7 @@ ser.close()
 if fp != 0:
     fp.close()
 
-# If we're on Linux set min on com port back to 1
+# Set min on com port back to 1 (Linux only)
 # Pyserial screws this up
-if os.name == "posix":
+if sys.platform == "linux":
     os.system("stty -F " + rng_com_port + " min 1")

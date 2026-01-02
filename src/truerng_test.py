@@ -13,10 +13,10 @@
 # Install Pyserial package with:   python -m pip install pyusb
 # Install Matplotlib package with:   python -m pip install matplotlib
 # Install Numpy package with:   python -m pip install numpy
-# Install Winregistry package with:   python -m pip install winregistry
-# Run this Python Script from the Windows command line:  py Truerng_test.py OR Truerng_test.py
-#
-# You may enter the com port identification as a command line option:  py Truerng_test.py COM1
+
+import sys
+if sys.platform != "linux":
+    sys.exit("Error: This script only runs on Linux.")
 
 print("====================================================")
 print("= TrueRNG Testing                                  =")
@@ -26,7 +26,6 @@ print("====================================================")
 
 import time
 import serial
-import sys
 import math
 import os
 import numpy as np
@@ -34,14 +33,8 @@ import matplotlib
 import subprocess
 from matplotlib import pyplot
 from serial.tools import list_ports
-
-if os.name == "posix":
-    import usb.core
-    import usb.util
-
-# If we're on Windows
-if os.name == "nt":
-    from winregistry import WinRegistry as Reg
+import usb.core
+import usb.util
 
 # Works for TrueRNG V1, V2, and V3
 TrueRNG_Min_Rate = 0.35  # Mbits/second
@@ -537,118 +530,6 @@ def move_figure(f, x, y):
         f.canvas.manager.window.move(x, y)
 
 
-if os.name == "nt":
-
-    def get_Truerngs_from_registry():
-        reg = Reg()
-
-        usb_serial_devices = reg.read_key(r"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\usbser\Enum")
-
-        devices_values = usb_serial_devices["values"]
-
-        serialNumber = "None"
-
-        index = 0
-        devicesFound = []
-
-        # Loop through
-        for x in devices_values:
-            try:
-                serialNumber = "None"
-                # TrueRNG V1/V2/V3
-                if "VID_04D8&PID_F5FE" in x["data"]:
-                    temp = x["data"].split("\\")
-                    vidpid = temp[1]
-                    keyid = temp[2]
-                    newkey = (
-                        "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Enum\\USB\\" + str(vidpid) + "\\" + str(keyid)
-                    )
-                    device_info = reg.read_key(newkey)["values"]
-                    deviceType = "TrueRNG V1/V2/V3"
-                    for k in device_info:
-                        if k["value"] == "FriendlyName":
-                            FriendlyName = k["data"]
-                        if k["value"] == "HardwareID":
-                            vidpidrev = k["data"][0].split("\\")[1].split("&")
-                    devicesFound.append(deviceType + " : " + vidpidrev[2] + " : No SN : " + FriendlyName)
-
-                # TrueRNGpro (FW > 1.39)
-                # USB Class 0A
-                if "VID_16D0&PID_0AA0\\" in x["data"]:
-                    temp = x["data"].split("\\")
-                    vidpid = temp[1]
-                    keyid = temp[2]
-                    newkey = (
-                        "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Enum\\USB\\" + str(vidpid) + "\\" + str(keyid)
-                    )
-                    device_info = reg.read_key(newkey)["values"]
-                    deviceType = "TrueRNGpro (V1) "
-                    for k in device_info:
-                        if k["value"] == "FriendlyName":
-                            FriendlyName = k["data"]
-                        if k["value"] == "HardwareID":
-                            vidpidrev = k["data"][0].split("\\")[1].split("&")
-                    devicesFound.append(deviceType + " : " + vidpidrev[2] + " : " + keyid + " : " + FriendlyName)
-
-                # TrueRNGpro (FW <= 1.39)
-                # USB Class 02
-                if "VID_16D0&PID_0AA0&MI_00\\" in x["data"]:
-                    temp = x["data"].split("\\")
-                    vidpid = temp[1]
-                    keyid = temp[2]
-                    newkey = (
-                        "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Enum\\USB\\" + str(vidpid) + "\\" + str(keyid)
-                    )
-                    device_info = reg.read_key(newkey)["values"]
-                    deviceType = "TrueRNGpro (V1) "
-                    for k in device_info:
-                        if k["value"] == "FriendlyName":
-                            FriendlyName = k["data"]
-                        if k["value"] == "HardwareID":
-                            vidpidrev = k["data"][0].split("\\")[1].split("&")
-
-                    # Find the info of the parent device since Windows doesn't populate the serial number into the child
-                    newkey = "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Enum\\USB\\VID_16D0&PID_0AA0"
-                    device_keys = reg.read_key(newkey)["keys"]
-                    # Iterate through the keys to find our device by it's key id
-                    for j in device_keys:
-                        newkey = "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Enum\\USB\\VID_16D0&PID_0AA0\\" + j
-                        temp_device = reg.read_key(newkey)["values"]
-                        for a in temp_device:
-                            if "ParentIdPrefix" in a["value"]:
-                                # If we have the right key entry
-                                if a["data"] in keyid:
-                                    serialNumber = j
-                    if serialNumber != "None":
-                        devicesFound.append(
-                            deviceType + " : " + vidpidrev[2] + " : " + serialNumber + " : " + FriendlyName
-                        )
-                    else:
-                        devicesFound.append(deviceType + " : " + vidpidrev[2] + " : " + keyid + " : " + FriendlyName)
-
-                # TrueRNGpro V2 (FW > 1.39)
-                # USB Class 0A
-                if "VID_04D8&PID_EBB5" in x["data"]:
-                    temp = x["data"].split("\\")
-                    vidpid = temp[1]
-                    keyid = temp[2]
-                    newkey = (
-                        "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Enum\\USB\\" + str(vidpid) + "\\" + str(keyid)
-                    )
-                    device_info = reg.read_key(newkey)["values"]
-                    deviceType = "TrueRNGpro (V2) "
-                    for k in device_info:
-                        if k["value"] == "FriendlyName":
-                            FriendlyName = k["data"]
-                        if k["value"] == "HardwareID":
-                            vidpidrev = k["data"][0].split("\\")[1].split("&")
-                    devicesFound.append(deviceType + " : " + vidpidrev[2] + " : " + keyid + " : " + FriendlyName)
-
-            except:
-                i = 1
-        return devicesFound
-
-
 try:
     while True:
         fig = 0
@@ -726,26 +607,16 @@ try:
         else:
             print("Using " + mode + " on " + rng_com_port + " (first detected)")
 
-        # If we're on Windows
-        if os.name == "nt":
-            devices = get_Truerngs_from_registry()
-            tempportname = "(" + rng_com_port + ")"
-            for n in devices:
-                if tempportname in n:
-                    print(n)
-        else:
-            print("Serial Number: " + str(serial_number))
+        print("Serial Number: " + str(serial_number))
 
-        # If we're on Linux
-        if os.name == "posix":
-            if mode == "TrueRNG":
-                command = "lsusb -d 04d8:f5fe -v 2> /dev/null | grep bcdDevice"
-            if mode == "TrueRNGpro":
-                command = "lsusb -d 16d0:0aa0 -v 2> /dev/null | grep bcdDevice"
-            if mode == "TrueRNGproV2":
-                command = "lsusb -d 04d8:ebb5 -v 2> /dev/null | grep bcdDevice"
-            result = subprocess.check_output(command, shell=True)
-            print("Firmware Rev : " + str(result).split("  ")[-1].split("\\")[0])
+        if mode == "TrueRNG":
+            command = "lsusb -d 04d8:f5fe -v 2> /dev/null | grep bcdDevice"
+        if mode == "TrueRNGpro":
+            command = "lsusb -d 16d0:0aa0 -v 2> /dev/null | grep bcdDevice"
+        if mode == "TrueRNGproV2":
+            command = "lsusb -d 04d8:ebb5 -v 2> /dev/null | grep bcdDevice"
+        result = subprocess.check_output(command, shell=True)
+        print("Firmware Rev : " + str(result).split("  ")[-1].split("\\")[0])
 
         # Set Defaults for the Current Mode / Device
         if mode == "TrueRNG":
@@ -950,7 +821,6 @@ except:
         pyplot.close(fig)
     print("Exiting now!")
 
-# If we're on Linux set min on com port back to 1
+# Set min on com port back to 1
 # Pyserial screws this up
-if os.name == "posix":
-    os.system("stty -F " + rng_com_port + " min 1")
+os.system("stty -F " + rng_com_port + " min 1")

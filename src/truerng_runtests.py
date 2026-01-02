@@ -13,9 +13,22 @@
 # Note: Dieharder needs 14GiB of data to not re-use (rewind) input data
 #       If you run this with 14GiB, many of the dieharder results may be invalid
 
-import time
 import sys
+if sys.platform != "linux":
+    sys.exit("Error: This script only runs on Linux.")
+
+import shutil
+import time
 import os
+
+# Check for required binaries
+missing_binaries = []
+for binary in ["ent", "dieharder", "rngtest"]:
+    if shutil.which(binary) is None:
+        missing_binaries.append(binary)
+
+if missing_binaries:
+    sys.exit("Error: Missing required binaries: " + ", ".join(missing_binaries))
 
 if len(sys.argv) == 2:
     FILENAME = str(sys.argv[1])

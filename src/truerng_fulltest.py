@@ -14,9 +14,9 @@
 # Note: Dieharder needs 14GiB of data to not re-use (rewind) input data
 #       If you run this with 14GiB, many of the dieharder results may be invalid
 
+import sys
 import serial
 import time
-import sys
 import os
 from serial.tools import list_ports
 
@@ -223,7 +223,7 @@ try:
 except:
     print("Can't run dieharder")
 
-# If we're on Linux set min on com port back to 1
+# Set min on com port back to 1 (Linux only)
 # Pyserial screws this up
-if os.name == "posix":
+if sys.platform == "linux":
     os.system("stty -F " + rng_com_port + " min 1")

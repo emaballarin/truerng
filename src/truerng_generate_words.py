@@ -11,6 +11,7 @@
 # Python 3.8.xx is available here: https://www.python.org/downloads/
 # Install package with:   python -m pip install pyserial nltk
 
+import sys
 import serial
 import os
 import time
@@ -178,7 +179,7 @@ while found < 20:
 # Close the serial port
 ser.close()
 
-# If we're on Linux set min on com port back to 1
+# Set min on com port back to 1 (Linux only)
 # Pyserial screws this up
-if os.name == "posix":
+if sys.platform == "linux":
     os.system("stty -F " + rng_com_port + " min 1")
