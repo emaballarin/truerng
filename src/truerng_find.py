@@ -57,7 +57,7 @@ def main() -> int:
     found_devices = 0
 
     for port_info in ports_available:
-        hwid = port_info[2] if len(port_info) > 2 else ""
+        hwid = port_info.hwid
         port = port_info[0]
         serial_num = port_info.serial_number or "None"
 

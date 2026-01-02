@@ -490,13 +490,16 @@ def move_figure(f: pyplot.Figure, x: int, y: int) -> None:
         y: Y coordinate in pixels.
     """
     backend = matplotlib.get_backend()
+    manager = f.canvas.manager
+    if manager is None or not hasattr(manager, "window"):
+        return  # Non-interactive or unsupported backend
     if backend == "TkAgg":
-        f.canvas.manager.window.wm_geometry(f"+{x}+{y}")
+        manager.window.wm_geometry(f"+{x}+{y}")
     elif backend == "WXAgg":
-        f.canvas.manager.window.SetPosition((x, y))
+        manager.window.SetPosition((x, y))
     else:
         # This works for QT and GTK
-        f.canvas.manager.window.move(x, y)
+        manager.window.move(x, y)
 
 
 def get_firmware_revision(device_mode: str) -> str:
@@ -539,7 +542,7 @@ try:
 
         # Find TrueRNG devices
         for temp in ports_available:
-            hwid = temp[2] if len(temp) > 2 else ""
+            hwid = temp.hwid
 
             if TRUERNG_VID_PID in hwid:
                 print(f"{temp[0]} : TrueRNG")

@@ -91,7 +91,7 @@ def find_truerng_devices() -> list[tuple[str, str]]:
     ports_available = list_ports.comports()
 
     for port_info in ports_available:
-        hwid = port_info[2] if len(port_info) > 2 else ""
+        hwid = port_info.hwid
 
         if TRUERNG_VID_PID in hwid:
             devices.append((port_info[0], "TrueRNG"))
