@@ -29,7 +29,7 @@ https://www.python.org/ftp/python/3.8.3/python-3.8.3-amd64.exe
 
 3. Open a command prompt (run the cmd command in Windows)
 
-4. Change to the directory you created above and run: 
+4. Change to the directory you created above and run:
 
 `install_python_libs.bat`
 
@@ -65,7 +65,7 @@ Linux Instructions (Ubuntu / Debian-based)
 OR
 
 `./truerng_test.py` (if your file permissions will allow execution)
- 
+
 This app should detect the device, run tests, and display results both in text and a graph of the performance.
 
 More Python Tools and info at:  https://cockrum.net
@@ -97,3 +97,20 @@ Output of truerng_generate_password.py and truerng_generate_words.py
 ![truerng_generate_password.py Output](https://cockrum.net/images/TrueRNG_wordlist_example.png)
 
 
+Installation of the udev rules For Ubuntu/Debian-based
+======================================================
+1. Put 99-TrueRNG.rules in /etc/udev/rules.d
+* sudo cp LOCATION/99-TrueRNG.rules /etc/udev/rules.d
+2. Change permissions to 0644
+* sudo chmod 0644 /etc/udev/rules.d
+3. Reboot or reload udev rules
+* sudo reboot OR
+* sudo udevadm control --reload-rules && sudo udevadm trigger
+
+Your TrueRNG devices should now show up as:
+-------------------------------------------
+* /dev/TrueRNG0
+* /dev/TrueRNG1
+* etc.
+
+More Python Tools and info at:  https://cockrum.net

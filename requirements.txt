@@ -1,0 +1,5 @@
+pyserial
+pyusb
+matplotlib
+nltk
+numpy
